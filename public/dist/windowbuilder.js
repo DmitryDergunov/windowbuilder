@@ -5995,18 +5995,20 @@ class ToolPen extends ToolElement {
         if(!connective.sizeb) {
           connective.offset = -connective.width;
         }
-        connective.joined_nearests().forEach((rama) => {
+        const prepare = (rama) => {
           const {inner, outer} = rama.joined_imposts();
           for (const {profile} of inner.concat(outer)) {
             profile.rays.clear();
           }
-          for (const {_attr, elm} of rama.joined_nearests()) {
-            _attr._rays && _attr._rays.clear();
+          for (const sub of rama.joined_nearests()) {
+            sub._attr._rays?.clear();
+            prepare(sub);
           }
           const {_attr, layer} = rama;
-          _attr._rays && _attr._rays.clear();
-          layer && layer.notify && layer.notify({profiles: [rama], points: []}, _scope.consts.move_points);
-        });
+          _attr._rays?.clear();
+          layer?.notify?.({profiles: [rama], points: []}, _scope.consts.move_points);
+        };
+        connective.joined_nearests().forEach(prepare);
       }
       // примыкание
       else if(profile.elm_type.is('adjoining')) {
@@ -6472,15 +6474,17 @@ class ToolPen extends ToolElement {
     addl_hit.generatrix.addSegments(sub_path.segments);
 
     // рисуем внутреннюю часть прототипа пути доборного профиля
-    this.path.addSegments(sub_path.equidistant(this.profile.inset.nom().width / 2 || 10).segments);
+    const nom = this.profile.inset.nom();
+    this.path.addSegments(sub_path.equidistant(nom.width / 2 || 10).segments);
 
     // завершим рисование прототипа пути доборного профиля
-    sub_path = sub_path.equidistant(-(this.profile.inset.nom().width || 10));
+    sub_path = sub_path.equidistant(-(nom.width || 10));
     sub_path.reverse();
     this.path.addSegments(sub_path.segments);
     sub_path.removeSegments();
     sub_path.remove();
     this.path.closePath();
+    this.path.bringToFront();
 
   }
 
@@ -6553,10 +6557,15 @@ class ToolPen extends ToolElement {
   hitTest_connective({point}) {
 
     const {project, _scope} = this;
-    const rootLayer = project.rootLayer();
+
 
     if (point){
+      let rootLayer = project.l_connective;
       this.hitItem = rootLayer.hitTest(point, ToolPen.root_match(rootLayer));
+      if(!this.hitItem) {
+        rootLayer = project.rootLayer();
+        this.hitItem = rootLayer.hitTest(point, ToolPen.root_match(rootLayer));
+      }
     }
 
     if(this.hitItem){
